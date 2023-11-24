@@ -23,7 +23,10 @@ connection = psycopg2.connect(
 def welcome():
     return render_template('index.html')
 
+if __name__=="__main__":
+    app.run(debug=False,host='0.0.0.0')
 
+    
 @app.post("/movie_recommendation")
 def get_recommended_movies():
     data = request.get_json()
