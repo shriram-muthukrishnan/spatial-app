@@ -1,0 +1,262 @@
+<html>
+    <head>
+      <style type="text/css">
+        input[type=text] {
+        margin-top: 20px;
+        padding: 10px;
+        font-family: 'Lato', sans-serif;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 26px;
+        color: #4C4A57;
+        border: none;
+        border-radius: 5px;
+        box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
+        outline: 2px solid #8800CC; /* Updated outline color value */
+        width: 600px;
+        }
+
+        label {
+        font-family: 'Lato', sans-serif;
+        font-size: 40px;
+        }
+
+        #search-container {
+        width: 900px;
+        margin: 50px auto 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        }
+
+        #autocomplete-items {
+        font-family: Lato, sans-serif;
+        font-size: 16px;
+        color: #4C4A57;
+        position: absolute;
+        border-bottom: none;
+        border-top: none;
+        z-index: 99;
+        width: 800px;
+        padding: 10px;
+        max-height: 200px;
+        overflow-y: auto;
+        background-color: #fff;
+        margin-top: 5px;
+        line-height: 1.5; /* Increase the line-height value */
+        }
+
+        .autocomplete-item:hover {
+        background-color: #F9EDFF;
+        }
+            .search-chip {
+                display: inline-block;
+                padding: 10px;
+                margin-right: 5px;
+                margin-bottom: 5px;
+                border-radius: 20px;
+                background-color: #F9EDFF;
+            }
+            .search-chip__text {
+        font-family: Lato, sans-serif;
+        font-size: 12px;
+                display: inline-block;
+                margin-right: 5px;
+                font-weight: light;
+                color: #4C4A57;
+            }
+        .search-chip__delete {
+        display: inline-block;
+        padding: 2px;
+        width: 16px;
+        height: 16px;
+        line-height: 16px;
+        text-align: center;
+        border-radius: 50%;
+        background-color: #333; /* Updated background color */
+        color: #fff;
+        font-family: 'Lato', sans-serif; /* Added font-family rule */
+        font-weight: 300; /* Added font-weight rule */
+        font-size: 14px; /* Added font-size rule */
+        cursor: pointer;
+        }
+            .search-chip__delete:hover {
+                background-color: #8800CC;
+            }
+        #run-button {
+        display: inline-block;
+        padding: 10px;
+        font-size: 16px;
+        border: none;
+        border-radius: 5px;
+        box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
+        background-color: #ddd;
+        color: #333;
+        cursor: not-allowed;
+        margin-left: 10px; /* Add this line */
+        }
+
+        #run-button.enabled {
+            color: #fff;
+            background-color: #8800CC;
+            color: #fff;
+            cursor: pointer;
+        }
+        #run-button.enabled:hover {
+            background-color: #55007f;
+        }
+
+        #run-button:not(.enabled)::before {
+        content: "write something for us to recommend";
+        font-family: 'Lato', sans-serif; /* Added font-family rule */
+        display: inline-block;
+        position: absolute;
+        background-color: #333;
+        color: #fff;
+        font-size: 14px;
+        padding: 5px;
+        border-radius: 5px;
+        white-space: nowrap;
+        transform: translateY(calc(50% - 50px)); 
+        opacity: 0;
+        transition: opacity 0.2s ease-in-out;
+        }
+
+        #run-button:not(.enabled):hover::before {
+        opacity: 1;
+        }
+
+        #recommendations-table {
+        font-family: Lato, sans-serif;
+        margin: 0 auto;
+        width: 80%;
+        max-width: 800px;
+        border-collapse: collapse;
+        margin-top: 120px;
+        margin-bottom: 50px;
+        }
+
+        #recommendations-table th,
+        #recommendations-table td {
+        padding: 10px;
+        text-align: center;
+        border: 1px solid #8800CC;
+        }
+
+        #recommendations-table th {
+        font-size: 16px;
+        background-color: #F9EDFF;
+        color: #4C4A57;
+        }
+
+        #recommendations-table td {
+        font-size: 16px;
+        font-weight: 300;
+        }
+
+        body {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        }
+        #footer {
+        position: fixed;
+        bottom: calc(30px + 0.5rem);
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        font-size: 20px;
+        font-family: Lato, sans-serif;
+        color: #4C4A57;
+        font-style: light;
+        width: 100%;
+        }
+        p {
+        font-family: 'Lato', sans-serif;
+        font-weight: 300;
+        font-size: 16px;
+        }
+        .recommendation-caption {
+        font-family: 'Lato', sans-serif;
+        font-size: 20px;
+        font-weight: 300;
+        text-align: left;
+        padding: 10px;
+        }
+      </style>
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    </head>
+
+  <body>
+
+     <div id ="search-container">
+        <label for="movie-search">Let AI pick your movie</label>
+        <div id = "input-container">
+            <div id = "search-box">
+                <input type="text" id="movie-search" name="movie-search" placeholder="What are you thinking about today?">
+                <button id="run-button"> Get Recommendations✨</button>
+            </div>
+        </div>
+     </div>
+
+     <div id="recommendations">
+        <table id="recommendations-table">
+            <caption class="recommendation-caption">We recommend:</caption>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Title</th>
+                    <th>Genre</th>
+                </tr>
+            </thead>
+            <tbody id ="recommendations-body">
+
+            
+        </table>
+     </div> 
+     <div id="footer">
+        Built on Azure database for Flexible Server with full text search and semantic-search 
+     </div>
+  </body>
+  <script>
+    $('#run-button').click(function (e) {
+        var text = $("#movie-search").val();
+        console.log(text);
+        var json_obj = {
+            "query":text
+        }
+        document.getElementById("recommendations-body").innerHTML = "";
+        $.ajax({
+            url:"/movie_recommendation",
+            type:"POST",
+            data:JSON.stringify({query:text}),
+            contentType:"application/json; charset=utf-8",
+            dataType:"json",
+            success: function(data){
+            response = data["result"];
+
+            var trHTML = "";
+                    for(var i =0;i<response.length;i++)
+                      {
+                         var o= response[i];
+                         var j=i+1
+                        trHTML += '<tr><td>' + j +
+                                    '</td><td>' + o[0] +
+                                    '</td><td>' + o[1] +
+                                    '</td></tr>';
+                           }
+                        trHTML+="</tbody>" 
+                        $('#recommendations-table').append(trHTML);
+                    },
+                    error: function (e) {
+                        $("#txtHint").html(e.responseText);
+
+
+            }
+})        
+
+
+    });
+  </script>
+</html>
