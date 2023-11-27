@@ -93,7 +93,7 @@
         box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
         background-color: #ddd;
         color: #333;
-        cursor: not-allowed;
+        cursor: pointer;
         margin-left: 10px; /* Add this line */
         }
 
@@ -103,13 +103,13 @@
             color: #fff;
             cursor: pointer;
         }
+
         #run-button.enabled:hover {
             background-color: #55007f;
         }
 
-        #run-button:not(.enabled)::before {
-        content: "write something for us to recommend";
-        font-family: 'Lato', sans-serif; /* Added font-family rule */
+        /*#run-button:not(.enabled)::before {
+        font-family: 'Lato', sans-serif; 
         display: inline-block;
         position: absolute;
         background-color: #333;
@@ -125,7 +125,7 @@
 
         #run-button:not(.enabled):hover::before {
         opacity: 1;
-        }
+        }*/
 
         #recommendations-table {
         font-family: Lato, sans-serif;
