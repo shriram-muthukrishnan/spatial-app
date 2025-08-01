@@ -1,6 +1,6 @@
 import os
 from flask import Flask, g, request,render_template,jsonify
-import cx_Oracle
+import oracledb
 import time
 import atexit
 
@@ -13,9 +13,9 @@ CACHE_TTL_SECONDS = 60 * 60  # Cache for 1 hour
 
 
 # === Create a global Oracle connection pool ===
-dsn = cx_Oracle.makedsn("20.84.145.157", 1521, service_name="XEPDB1")
+dsn = oracledb.makedsn("20.84.145.157", 1521, service_name="XEPDB1")
 try:
-    pool = cx_Oracle.SessionPool(
+    pool = oracledb.SessionPool(
         user="SHRIRAM",
         password="Admin123",
         dsn=dsn,
@@ -23,7 +23,7 @@ try:
         max=10,
         increment=1,
         threaded=True,
-        getmode=cx_Oracle.SPOOL_ATTRVAL_WAIT
+        getmode=oracledb.SPOOL_ATTRVAL_WAIT
     )
 except Exception as e:
     print(f"❌ Failed to create Oracle connection pool: {e}")
