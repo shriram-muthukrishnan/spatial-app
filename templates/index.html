@@ -1,262 +1,230 @@
 <html>
     <head>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">      
       <style type="text/css">
-        input[type=text] {
-        margin-top: 20px;
-        padding: 10px;
-        font-family: 'Lato', sans-serif;
-        font-size: 14px;
-        font-weight: 400;
-        line-height: 26px;
-        color: #4C4A57;
-        border: none;
-        border-radius: 5px;
-        box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
-        outline: 2px solid #8800CC; /* Updated outline color value */
-        width: 600px;
-        }
 
-        label {
-        font-family: 'Lato', sans-serif;
-        font-size: 40px;
-        }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
 
-        #search-container {
-        width: 900px;
-        margin: 50px auto 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        position: relative;
-        }
+    header {
+      background-color: #1d3557;
+      color: white;
+      padding: 15px 20px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+    } 
 
-        #autocomplete-items {
-        font-family: Lato, sans-serif;
-        font-size: 16px;
-        color: #4C4A57;
-        position: absolute;
-        border-bottom: none;
-        border-top: none;
-        z-index: 99;
-        width: 800px;
-        padding: 10px;
-        max-height: 200px;
-        overflow-y: auto;
-        background-color: #fff;
-        margin-top: 5px;
-        line-height: 1.5; /* Increase the line-height value */
-        }
+    #dataToggleContainer {
+      background: #f1f1f1;
+      padding: 10px;
+      text-align: center;
+    }
 
-        .autocomplete-item:hover {
-        background-color: #F9EDFF;
-        }
-            .search-chip {
-                display: inline-block;
-                padding: 10px;
-                margin-right: 5px;
-                margin-bottom: 5px;
-                border-radius: 20px;
-                background-color: #F9EDFF;
-            }
-            .search-chip__text {
-        font-family: Lato, sans-serif;
-        font-size: 12px;
-                display: inline-block;
-                margin-right: 5px;
-                font-weight: light;
-                color: #4C4A57;
-            }
-        .search-chip__delete {
-        display: inline-block;
-        padding: 2px;
-        width: 16px;
-        height: 16px;
-        line-height: 16px;
-        text-align: center;
-        border-radius: 50%;
-        background-color: #333; /* Updated background color */
-        color: #fff;
-        font-family: 'Lato', sans-serif; /* Added font-family rule */
-        font-weight: 300; /* Added font-weight rule */
-        font-size: 14px; /* Added font-size rule */
-        cursor: pointer;
-        }
-            .search-chip__delete:hover {
-                background-color: #8800CC;
-            }
-        #run-button {
-        display: inline-block;
-        padding: 10px;
-        font-size: 16px;
-        border: none;
-        border-radius: 5px;
-        box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
-        background-color: #ddd;
-        color: #333;
-        cursor: pointer;
-        margin-left: 10px; /* Add this line */
-        }
+    #dataToggleContainer label {
+      margin: 0 15px;
+      font-size: 16px;
+      cursor: pointer;
+    }
 
-        #run-button.enabled {
-            color: #fff;
-            background-color: #8800CC;
-            color: #fff;
-            cursor: pointer;
-        }
-
-        #run-button.enabled:hover {
-            background-color: #55007f;
-        }
-
-        /*#run-button:not(.enabled)::before {
-        font-family: 'Lato', sans-serif; 
-        display: inline-block;
-        position: absolute;
-        background-color: #333;
-        color: #fff;
-        font-size: 14px;
-        padding: 5px;
-        border-radius: 5px;
-        white-space: nowrap;
-        transform: translateY(calc(50% - 50px)); 
-        opacity: 0;
-        transition: opacity 0.2s ease-in-out;
-        }
-
-        #run-button:not(.enabled):hover::before {
-        opacity: 1;
-        }*/
-
-        #recommendations-table {
-        font-family: Lato, sans-serif;
-        margin: 0 auto;
-        width: 80%;
-        max-width: 800px;
-        border-collapse: collapse;
-        margin-top: 120px;
-        margin-bottom: 50px;
-        }
-
-        #recommendations-table th,
-        #recommendations-table td {
-        padding: 10px;
-        text-align: center;
-        border: 1px solid #8800CC;
-        }
-
-        #recommendations-table th {
-        font-size: 16px;
-        background-color: #F9EDFF;
-        color: #4C4A57;
-        }
-
-        #recommendations-table td {
-        font-size: 16px;
-        font-weight: 300;
-        }
-
-        body {
+    #map {
+          height: calc(100vh - 100px); /* adjust for header + toggle bar */
+          width: 100%;
+    }
+    body {
         display: flex;
         flex-direction: column;
         min-height: 100vh;
-        }
-        #footer {
-        position: fixed;
-        bottom: calc(30px + 0.5rem);
-        left: 50%;
-        transform: translateX(-50%);
-        text-align: center;
-        font-size: 20px;
-        font-family: Lato, sans-serif;
-        color: #4C4A57;
-        font-style: light;
-        width: 100%;
-        }
-        p {
-        font-family: 'Lato', sans-serif;
-        font-weight: 300;
-        font-size: 16px;
-        }
-        .recommendation-caption {
-        font-family: 'Lato', sans-serif;
-        font-size: 20px;
-        font-weight: 300;
-        text-align: left;
-        padding: 10px;
-        }
+    }
+
+    #footer {
+    position: fixed;
+    bottom: calc(30px + 0.5rem);
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    font-size: 20px;
+    font-family: Lato, sans-serif;
+    color: #4C4A57;
+    font-style: light;
+    width: 100%;
+    }
+
+    p {
+    font-family: 'Lato', sans-serif;
+    font-weight: 300;
+    font-size: 16px;
+    }
+
       </style>
       <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+      <title>World Cities Map</title>
     </head>
-
   <body>
-
-     <div id ="search-container">
-        <label for="movie-search">Let AI pick your movie</label>
-        <div id = "input-container">
-            <div id = "search-box">
-                <input type="text" id="movie-search" name="movie-search" placeholder="What are you thinking about today?">
-                <button id="run-button"> Get Recommendations✨</button>
-            </div>
-        </div>
-     </div>
-
-     <div id="recommendations">
-        <table id="recommendations-table">
-            <caption class="recommendation-caption">We recommend:</caption>
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>Title</th>
-                    <th>Genre</th>
-                </tr>
-            </thead>
-            <tbody id ="recommendations-body">
-
-            
-        </table>
-     </div> 
+    <header> World Map Viewer </header>
+    <!--radio buttons-->
+    <div id="dataToggleContainer">
+        <label>
+        <input type="radio" name="dataToggle" value="cities" checked /> Cities
+        </label>
+        <label>
+        <input type="radio" name="dataToggle" value="railways" /> Railway Lines
+        </label>
+    </div>
+    <div id="map"></div>
      <div id="footer">
-        Built on Azure database for Flexible Server with full text search and semantic-search 
+        Built on Oracle Databases and Flask
      </div>
-  </body>
-  <script>
-    $('#run-button').click(function (e) {
-        var text = $("#movie-search").val();
-        console.log(text);
-        var json_obj = {
-            "query":text
+    <div id="loading" style="display: none; position: fixed; top: 50%; left: 50%; transform: translateX(-50%);
+        background-color: #333; color: #fff; padding: 10px 20px; border-radius: 5px; z-index: 1000;">
+    </div>     
+   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> 
+   <script>
+    // Initial map settings
+    const initialLat = 20;
+    const initialLng = 0;
+    const initialZoom = 2;
+
+    const map = L.map('map').setView([initialLat, initialLng], initialZoom);    
+    
+    const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+  
+    let currentLayerGroup = L.layerGroup().addTo(map);
+
+    const resetControl = L.control({ position: 'topright' });
+
+    resetControl.onAdd = function () {
+        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        div.innerHTML = '<a href="#" title="Reset Zoom" style="padding: 5px;">⟳</a>';
+        div.style.background = 'white';
+        div.style.cursor = 'pointer';
+        div.onclick = function () {
+        map.setView([initialLat, initialLng], initialZoom);
+        };
+        return div;
+    };
+
+    resetControl.addTo(map);
+ 
+   /*fetch('/cities')
+    .then(response => response.json())
+    .then(data => {
+        console.log("Received city data:", data);
+      data.forEach(city => {
+        L.marker([city.latitude, city.longitude])
+          .addTo(map)
+          .bindPopup(`<b>${city.name}</b><br>Population: ${city.population}`);
+      });
+      console.log("Markers added to the map.");
+    });*/
+
+  function showLoading(isLoading,type) {
+    const loader = document.getElementById("loading");
+    loader.style.display = isLoading ? "block" : "none";
+    loader.innerHTML = isLoading ? `⏳ Loading ${type} data...` : "";
+  }
+
+  function loadData(type) {
+    showLoading(true, type);  // Show loader when fetch starts
+    currentLayerGroup.clearLayers(); // Clear previous markers or polylines
+    const endpoint = type === "cities" ? "/cities" : "/railways";
+      fetch(endpoint)
+        .then(response => {
+          if (!response.ok) throw new Error(`Failed to fetch ${type}`);
+          return response.json();
+        })
+        .then(data => {
+          showLoading(false, type); // Hide loader on success
+
+          if (type === "cities") {
+            data.forEach(city => {
+              L.marker([city.latitude, city.longitude])
+                .bindPopup(`<b>${city.name}</b><br>Population: ${city.population}`)
+                .addTo(currentLayerGroup);
+            });
+          } else if (type === "railways") {
+            data.forEach(line => {
+              const polyline = L.polyline(line.coordinates, {
+                color: 'red',
+                weight: 2
+              }).bindPopup(`<b>${line.id}</b><br>${line.featurecla}<br>${line.part}<br>${line.continent}`);
+              currentLayerGroup.addLayer(polyline);
+            });
+          }
+        })
+        .catch(err => {
+          showLoading(false, type);
+          alert("❌ Unable to load " + type + ": " + err.message);
+        });    
+    /*fetch('/cities')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("Failed to fetch city data.");
         }
-        document.getElementById("recommendations-body").innerHTML = "";
-        $.ajax({
-            url:"/movie_recommendation",
-            type:"POST",
-            data:JSON.stringify({query:text}),
-            contentType:"application/json; charset=utf-8",
-            dataType:"json",
-            success: function(data){
-            response = data["result"];
+        return response.json();
+      })
+      .then(data => {
+        showLoading(false); // Hide loader on success
+        data.forEach(city => {
+          L.marker([city.latitude, city.longitude])
+            .addTo(map)
+            .bindPopup(`<b>${city.name}</b><br>Population: ${city.population}`);
+        });
+      })
+      .catch(error => {
+        showLoading(false); // Hide loader on error
+        alert("❌ Unable to load city data. Please try again later.\n" + error.message);
+        console.error("Fetch error:", error);
+      });
 
-            var trHTML = "";
-                    for(var i =0;i<response.length;i++)
-                      {
-                         var o= response[i];
-                         var j=i+1
-                        trHTML += '<tr><td>' + j +
-                                    '</td><td>' + o[0] +
-                                    '</td><td>' + o[1] +
-                                    '</td></tr>';
-                           }
-                        trHTML+="</tbody>" 
-                        $('#recommendations-table').append(trHTML);
-                    },
-                    error: function (e) {
-                        $("#txtHint").html(e.responseText);
+     //function loadRailways() {
+    //showLoading(true);
 
+      fetch('/railways')
+        .then(response => {
+          if (!response.ok) throw new Error("Failed to fetch railway data");
+          return response.json();
+        })
+        .then(data => {
+          showLoading(false);
 
-            }
-})        
+          if (data.length === 0) {
+            alert("No railway data available.");
+            return;
+          }
 
+          data.forEach(line => {
+            const polyline = L.polyline(line.coordinates, {
+              color: 'red',
+              weight: 2
+            }).addTo(map);
+            polyline.bindPopup(`<b>${line.id}</b><br>${line.featurecla}<br>${line.part}<br>${line.continent}`);
+          });
+        })
+        .catch(err => {
+          showLoading(false);
+          alert("❌ Unable to load railway data. " + err.message);
+          console.error("Railway load error:", err);
+        });*/
+    };     
 
+    // Initial load
+    loadData("cities");  
+
+    // Event listener for radio buttons
+    document.querySelectorAll('input[name="dataToggle"]').forEach(radio => {
+      radio.addEventListener('change', function() {
+        const selectedType = this.value;
+        loadData(selectedType);
+      });
     });
+
   </script>
+  </body>
 </html>
