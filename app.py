@@ -1,5 +1,4 @@
 import os
-from dotenv import load_dotenv
 from flask import Flask, g, request,render_template,jsonify
 import cx_Oracle
 import time
