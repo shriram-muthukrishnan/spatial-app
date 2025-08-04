@@ -1,11 +1,17 @@
 import os
-from flask import Flask, g, request,render_template,jsonify
+from flask import stream_with_context,Response
+from flask import Flask,g,request,render_template,jsonify
 import oracledb
+import json
+from shapely import wkt
+from shapely.geometry import mapping
 import time
 import atexit
+import traceback
+from io import StringIO
 
-#load_dotenv()
 app = Flask(__name__)
+# === Configuration ===
 cached_data_cities = None
 cached_data_railways = None
 last_refresh_cities = 0
@@ -14,7 +20,9 @@ CACHE_TTL_SECONDS = 60 * 60  # Cache for 1 hour
 
 
 # === Create a global Oracle connection pool ===
+print("Creating Oracle connection pool...")
 dsn = oracledb.makedsn("20.84.145.157", 1521, service_name="XEPDB1")
+print(f"Using DSN: {dsn}")
 try:
     pool = oracledb.SessionPool(
         user="SHRIRAM",
@@ -30,13 +38,17 @@ except Exception as e:
     print(f"❌ Failed to create Oracle connection pool: {e}")
     exit(1)
 
+print("Pool created successfully.")
+
 # Close pool gracefully when app stops
 atexit.register(lambda: pool.close())
 
 # === Acquire a connection for each request ===
+
 @app.before_request
 def before_request():
     try:
+        print("Acquiring database connection...")
         g.db = pool.acquire()
     except Exception as e:
         g.db = None
@@ -44,8 +56,14 @@ def before_request():
 
 @app.teardown_request
 def teardown_request(exception):
-    if hasattr(g, 'db') and g.db:
-        pool.release(g.db)
+    db_conn = g.pop('db', None)
+    if db_conn:
+        try:
+            pool.release(db_conn)
+            print("✅ DB connection released.")
+        except Exception as e:
+            print(f"❌ Error releasing DB connection: {e}")
+
 
 # === Error handler (500 and DB errors) ===
 @app.errorhandler(Exception)
@@ -103,90 +121,113 @@ def get_cities():
 def index():
     return render_template('index.html')
 
+
 @app.route('/cities')
 def cities():
+    print("Fetching cities data...")
     cities = get_cities()
     return jsonify(cities)
 
 
 @app.route("/railways")
 def get_railways():
-    print("Fetching railways data...")
     global cached_data_railways, last_refresh_railways
+
     current_time = time.time()
-    print("Cached data:", cached_data_railways)
     if cached_data_railways is not None and (current_time - last_refresh_railways) < CACHE_TTL_SECONDS:
-        print("Returning cached data.")
-        return cached_data_railways
+        print("🔁 Returning cached railways data.")
+        return Response(cached_data_railways, mimetype='application/x-ndjson')
 
-    if not g.db:
-        return {"error": "Database connection failed"}, 500
-    
-    try:
-        cursor = g.db.cursor()
-        cursor.execute("""
-            SELECT id, name, country, length_km, type,
-                rwdb_rr_id, mult_track, electric, other_code, category,
-                disp_scale, add_field, featurecla, scalerank, natlscale,
-                part, continent, geometry
-                FROM (
-                    SELECT *
-                    FROM railways
-                    WHERE geometry IS NOT NULL
-                    ORDER BY DBMS_RANDOM.VALUE
-                )
-                WHERE ROWNUM <= 1000    
-            """)
-        results = []   
-        for row in cursor:
-            (
-            gid, name, country, length_km, rail_type,
-            rwdb_rr_id, mult_track, electric, other_code, category,
-            disp_scale, add_field, featurecla, scalerank, natlscale,
-            part, continent, geom
-            ) = row
+    @stream_with_context
+    def generate():
+        global cached_data_railways, last_refresh_railways
 
-            # Extract ordinates from the geometry
-            ordinates = geom.SDO_ORDINATES.aslist() if geom.SDO_ORDINATES else []
-            coordinates = [(ordinates[i + 1], ordinates[i]) for i in range(0, len(ordinates), 2)]  
-            # Leaflet expects [lat, lon], but SDO is (x=lon, y=lat)
+        print("🚂 Starting to stream railways data...")
+        ndjson_stream = StringIO()
 
-            results.append({
-            "id": gid,
-            "name": name,
-            "country": country,
-            "length_km": length_km,
-            "type": rail_type,
-            "rwdb_rr_id": rwdb_rr_id,
-            "mult_track": mult_track,
-            "electric": electric,
-            "other_code": other_code,
-            "category": category,
-            "disp_scale": disp_scale,
-            "add_field": add_field,
-            "featurecla": featurecla,
-            "scalerank": scalerank,
-            "natlscale": natlscale,
-            "part": part,
-            "continent": continent,
-            "coordinates": coordinates
-            })
-        
-        print(f"Retrieved {len(results)} railways from the database.")
+        if not g.get("db"):
+            yield json.dumps({"error": "Database connection failed"}) + "\n"
+            return
+
+        chunk_size = 200
+        offset = 0
+        done = False
+
+        try:
+            while not done:
+                print(f"📦 Fetching rows {offset + 1} to {offset + chunk_size}...")
+
+                cursor = g.db.cursor()
+                cursor.execute("""
+                    SELECT id, featurecla, part, continent, wkt_column
+                    FROM (
+                        SELECT id, featurecla, part, continent, wkt_column,
+                               ROW_NUMBER() OVER (ORDER BY id) AS rn
+                        FROM (
+                            SELECT * FROM railways
+                            WHERE wkt_column IS NOT NULL
+                            ORDER BY DBMS_RANDOM.VALUE
+                        )
+                        WHERE ROWNUM <= 1000
+                    )
+                    WHERE rn BETWEEN :start_row AND :end_row
+                """, start_row=offset + 1, end_row=offset + chunk_size)
+
+                rows = cursor.fetchall()
+                cursor.close()
+
+                if not rows:
+                    done = True
+                    break
+
+                chunk_features = []
+                for row in rows:
+                    try:
+                        if row[4] is None:
+                            continue
+                        geom_wkt = row[4].read() if hasattr(row[4], 'read') else str(row[4])
+                        geom = wkt.loads(geom_wkt).simplify(0.01)
+
+                        feature = {
+                            "type": "Feature",
+                            "geometry": mapping(geom),
+                            "properties": {
+                                "id": row[0],
+                                "featurecla": row[1],
+                                "part": row[2],
+                                "continent": row[3]
+                            }
+                        }
+                        chunk_features.append(feature)
+                    except Exception as e:
+                        print(f"❌ Error processing row: {e}")
+                        continue
+
+                if chunk_features:
+                    line = json.dumps({
+                        "type": "FeatureCollection",
+                        "features": chunk_features,
+                        "chunk": offset // chunk_size + 1
+                    }) + "\n"
+                    ndjson_stream.write(line)
+                    yield line
+
+                offset += chunk_size
+                if len(rows) < chunk_size:
+                    done = True
+
+        except Exception as e:
+            print(f"❌ Stream error: {e}")
+            yield json.dumps({"error": str(e)}) + "\n"
+
+        # Cache the output
+        cached_data_railways = ndjson_stream.getvalue()
         last_refresh_railways = time.time()
-        cached_data_railways = jsonify(results)
-        return jsonify(results)
+        print("✅ Cached /railways NDJSON stream")
 
-    except Exception as e:
-        print(f"❌ Query failed: {e}")
-        return jsonify({"error": "Failed to query railways"}), 500 
+    return Response(generate(), mimetype='application/x-ndjson')
 
-    finally:
-        if cursor:
-            cursor.close()
 
 if __name__ == "__main__":
-    app.run(debug=True)
-
-
+    app.run(debug=True, port=5050)
 

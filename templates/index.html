@@ -112,17 +112,6 @@
 
     resetControl.addTo(map);
  
-   /*fetch('/cities')
-    .then(response => response.json())
-    .then(data => {
-        console.log("Received city data:", data);
-      data.forEach(city => {
-        L.marker([city.latitude, city.longitude])
-          .addTo(map)
-          .bindPopup(`<b>${city.name}</b><br>Population: ${city.population}`);
-      });
-      console.log("Markers added to the map.");
-    });*/
 
   function showLoading(isLoading,type) {
     const loader = document.getElementById("loading");
@@ -130,89 +119,108 @@
     loader.innerHTML = isLoading ? `⏳ Loading ${type} data...` : "";
   }
 
-  function loadData(type) {
-    showLoading(true, type);  // Show loader when fetch starts
-    currentLayerGroup.clearLayers(); // Clear previous markers or polylines
-    const endpoint = type === "cities" ? "/cities" : "/railways";
-      fetch(endpoint)
-        .then(response => {
-          if (!response.ok) throw new Error(`Failed to fetch ${type}`);
-          return response.json();
-        })
-        .then(data => {
-          showLoading(false, type); // Hide loader on success
+ 
+function loadData(type) {
+  showLoading(true, type);  // Show loader
+  currentLayerGroup.clearLayers();  // Clear existing layers
 
-          if (type === "cities") {
-            data.forEach(city => {
-              L.marker([city.latitude, city.longitude])
-                .bindPopup(`<b>${city.name}</b><br>Population: ${city.population}`)
-                .addTo(currentLayerGroup);
-            });
-          } else if (type === "railways") {
-            data.forEach(line => {
-              const polyline = L.polyline(line.coordinates, {
-                color: 'red',
-                weight: 2
-              }).bindPopup(`<b>${line.id}</b><br>${line.featurecla}<br>${line.part}<br>${line.continent}`);
-              currentLayerGroup.addLayer(polyline);
-            });
-          }
-        })
-        .catch(err => {
-          showLoading(false, type);
-          alert("❌ Unable to load " + type + ": " + err.message);
-        });    
-    /*fetch('/cities')
+  const endpoint = type === "cities" ? "/cities" : "/railways";
+
+  if (type === "cities") {
+    // Standard full JSON load
+    fetch(endpoint)
       .then(response => {
-        if (!response.ok) {
-          throw new Error("Failed to fetch city data.");
-        }
+        if (!response.ok) throw new Error(`Failed to fetch ${type}`);
         return response.json();
       })
       .then(data => {
-        showLoading(false); // Hide loader on success
+        showLoading(false, type);
+
         data.forEach(city => {
           L.marker([city.latitude, city.longitude])
-            .addTo(map)
-            .bindPopup(`<b>${city.name}</b><br>Population: ${city.population}`);
+            .bindPopup(`<b>${city.name}</b><br>Population: ${city.population}`)
+            .addTo(currentLayerGroup);
         });
       })
-      .catch(error => {
-        showLoading(false); // Hide loader on error
-        alert("❌ Unable to load city data. Please try again later.\n" + error.message);
-        console.error("Fetch error:", error);
+      .catch(err => {
+        showLoading(false, type);
+        alert("❌ Unable to load cities: " + err.message);
       });
 
-     //function loadRailways() {
-    //showLoading(true);
+  } 
+}
 
-      fetch('/railways')
-        .then(response => {
-          if (!response.ok) throw new Error("Failed to fetch railway data");
-          return response.json();
-        })
-        .then(data => {
-          showLoading(false);
+function loadRailwaysStreamed() {
+  showLoading(true, 'railways');
+  currentLayerGroup.clearLayers();
 
-          if (data.length === 0) {
-            alert("No railway data available.");
+  fetch('/railways')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error("Failed to fetch railways");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+
+      function readChunk() {
+        return reader.read().then(({ done, value }) => {
+          if (done) {
+            showLoading(false, 'railways');
+            console.log("✅ Stream complete");
             return;
           }
 
-          data.forEach(line => {
-            const polyline = L.polyline(line.coordinates, {
-              color: 'red',
-              weight: 2
-            }).addTo(map);
-            polyline.bindPopup(`<b>${line.id}</b><br>${line.featurecla}<br>${line.part}<br>${line.continent}`);
+          buffer += decoder.decode(value, { stream: true });
+
+          // NDJSON => split by line
+          let lines = buffer.split("\n");
+          buffer = lines.pop(); // Keep partial line if any
+
+          lines.forEach(line => {
+            if (line.trim()) {
+              try {
+                const collection = JSON.parse(line);
+                console.log("📌 FeatureCollection chunk:", collection);
+
+                if (collection.type === 'FeatureCollection' && Array.isArray(collection.features)) {
+                  collection.features.forEach(feature => {
+                    const coords = feature.geometry.coordinates;
+                    const flippedCoords = coords.map(coord => [coord[1], coord[0]]);
+                    const polyline = L.polyline(flippedCoords, {
+                      color: 'red',
+                      weight: 2
+                    }).bindPopup(`
+                      <b>${feature.properties.id}</b><br>
+                      ${feature.properties.featurecla}<br>
+                      ${feature.properties.part}<br>
+                      ${feature.properties.continent}
+                    `);
+                    currentLayerGroup.addLayer(polyline);
+                  });
+                } else {
+                  console.warn("⚠️ Skipped non-FeatureCollection:", collection);
+                }
+
+              } catch (err) {
+                console.error("❌ JSON parse error:", err);
+              }
+            }
           });
-        })
-        .catch(err => {
-          showLoading(false);
-          alert("❌ Unable to load railway data. " + err.message);
-          console.error("Railway load error:", err);
-        });*/
-    };     
+
+          return readChunk();
+        });
+      }
+
+      return readChunk();
+    })
+    .catch(err => {
+      showLoading(false, 'railways');
+      alert("❌ Stream error: " + err.message);
+    });
+}
+
 
     // Initial load
     loadData("cities");  
@@ -221,7 +229,11 @@
     document.querySelectorAll('input[name="dataToggle"]').forEach(radio => {
       radio.addEventListener('change', function() {
         const selectedType = this.value;
-        loadData(selectedType);
+        if (selectedType == "railways") {
+          loadRailwaysStreamed(); // Use streamed loading for railways
+        } else {
+          loadData(selectedType); // Standard loading for cities
+        }
       });
     });
 
