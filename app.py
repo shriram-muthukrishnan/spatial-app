@@ -8,7 +8,8 @@ import atexit
 app = Flask(__name__)
 cached_data_cities = None
 cached_data_railways = None
-last_refresh = 0
+last_refresh_cities = 0
+last_refresh_railways = 0
 CACHE_TTL_SECONDS = 60 * 60  # Cache for 1 hour
 
 
@@ -55,9 +56,9 @@ def handle_exception(e):
 
 def get_cities():
     print("Fetching cities from the database...")
-    global cached_data_cities, last_refresh
+    global cached_data_cities, last_refresh_cities
     current_time = time.time()
-    if cached_data_cities is not None and (current_time - last_refresh) < CACHE_TTL_SECONDS:
+    if cached_data_cities is not None and (current_time - last_refresh_cities) < CACHE_TTL_SECONDS:
         print("Returning cached data.")
         return cached_data_cities
 
@@ -85,7 +86,7 @@ def get_cities():
             }
             for record in cursor.fetchall()
         ]
-        last_refresh = time.time()
+        last_refresh_cities = time.time()
         cached_data_cities = cities
         print(f"Retrieved {len(cities)} cities from the database.")
         return cities
@@ -111,10 +112,10 @@ def cities():
 @app.route("/railways")
 def get_railways():
     print("Fetching railways data...")
-    global cached_data_railways, last_refresh
+    global cached_data_railways, last_refresh_railways
     current_time = time.time()
     print("Cached data:", cached_data_railways)
-    if cached_data_railways is not None and (current_time - last_refresh) < CACHE_TTL_SECONDS:
+    if cached_data_railways is not None and (current_time - last_refresh_railways) < CACHE_TTL_SECONDS:
         print("Returning cached data.")
         return cached_data_railways
 
@@ -172,7 +173,7 @@ def get_railways():
             })
         
         print(f"Retrieved {len(results)} railways from the database.")
-        last_refresh = time.time()
+        last_refresh_railways = time.time()
         cached_data_railways = jsonify(results)
         return jsonify(results)
 
