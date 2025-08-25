@@ -89,6 +89,13 @@
     const initialLng = 0;
     const initialZoom = 2;
 
+    const cityIcon = L.icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', // red icon example
+      iconSize: [20, 30],   // size of the icon (width, height) - smaller than default
+      iconAnchor: [10, 30], // point of the icon which will correspond to marker's location
+      popupAnchor: [0, -28] // where popups open relative to the iconAnchor
+    });
+
     const map = L.map('map').setView([initialLat, initialLng], initialZoom);    
     
     const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -137,7 +144,7 @@ function loadData(type) {
         showLoading(false, type);
 
         data.forEach(city => {
-          L.marker([city.latitude, city.longitude])
+          L.marker([city.latitude, city.longitude], { icon: cityIcon })
             .bindPopup(`<b>${city.name}</b><br>Population: ${city.population}`)
             .addTo(currentLayerGroup);
         });
