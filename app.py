@@ -128,6 +128,54 @@ def cities():
     cities = get_cities()
     return jsonify(cities)
 
+@app.route('/search_city')
+def search_city():
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({"error": "No city name provided"}), 400
+
+    conn = pool.acquire()
+    cursor = conn.cursor()
+
+    try:
+        # find the city
+        cursor.execute("""
+          SELECT GEONAMEID, NAME, LATITUDE, LONGITUDE, POPULATION,
+                   SDO_UTIL.TO_WKTGEOMETRY(LOCATION) AS WKT
+            FROM cities
+            WHERE LOWER(NAME) = LOWER(:city_name)
+              AND ROWNUM = 1
+        """, city_name=query)
+        row = cursor.fetchone()
+        cursor.close()
+        if not row:
+            return jsonify({"error": "City not found"}), 404
+
+        wkt_value = row[5].read() if hasattr(row[5], "read") else str(row[5])
+        # Bounding box
+        geom = wkt.loads(wkt_value)
+        minx, miny, maxx, maxy = geom.bounds
+
+        feature = {
+            "type": "Feature",
+            "geometry": mapping(geom),
+            "properties": {
+                "id": row[0],
+                "name": row[1],
+                "latitude": row[2],
+                "longitude": row[3],
+                "population": row[4]
+            },
+            "bbox": [minx, miny, maxx, maxy]
+        }
+        print(feature)
+        return jsonify(feature)
+                    
+    except Exception as e:
+        print(f"❌ Error searching city: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 
 @app.route("/railways")
 def get_railways():

@@ -60,6 +60,37 @@
     font-size: 16px;
     }
 
+    #searchContainer {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 10px auto;
+        gap: 8px;
+        max-width: 400px;
+    }
+
+    #citySearch {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    #searchBtn {
+        padding: 8px 16px;
+        background-color: #004080; /* match header/nav blue */
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    #searchBtn:hover {
+        background-color: #0059b3; /* lighter hover blue */
+    }
+
       </style>
       <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
       <title>World Cities Map</title>
@@ -75,6 +106,11 @@
         <input type="radio" name="dataToggle" value="railways" /> Railway Lines
         </label>
     </div>
+    <!-- Search bar (hidden by default unless cities is selected) -->
+    <div id="citySearchContainer" style="margin: 10px 0;">
+      <input type="text" id="citySearch" placeholder="Enter city name..." style="padding:5px; width:200px;" />
+      <button id="searchBtn" onclick="searchCity()">Search</button>
+    </div>    
     <div id="map"></div>
      <div id="footer">
         Built on Oracle Databases and Flask
@@ -119,6 +155,84 @@
 
     resetControl.addTo(map);
  
+  // Show/hide search bar based on selected dataset
+  document.querySelectorAll("input[name='dataToggle']").forEach(radio => {
+    radio.addEventListener("change", function() {
+      const searchContainer = document.getElementById("citySearchContainer");
+      if (this.value === "cities") {
+        searchContainer.style.display = "block";
+      } else {
+        searchContainer.style.display = "none";
+      }
+    });
+  });
+
+  // Ensure correct initial state
+  if (document.querySelector("input[name='dataToggle']:checked").value === "cities") {
+    document.getElementById("citySearchContainer").style.display = "block";
+  } else {
+    document.getElementById("citySearchContainer").style.display = "none";
+  }
+
+  let cityLayer = null;  // keep reference to highlight layer
+  // Placeholder search function
+  async function searchCity() {
+    const city = document.getElementById("citySearch").value;
+    if (!city) {
+      alert("Please enter a city name!");
+      return;
+    }
+    console.log("Searching city:", city);
+    // TODO: hook this up to your /search_city API
+    try {
+      const response = await fetch(`/search_city?q=${encodeURIComponent(city)}`);
+      const data = await response.json();
+      if (response.ok) {
+        console.log("City found:", data);
+        // TODO: Display the city on the map
+      } else {
+        throw new Error(data.error || "Unknown error");
+      }
+
+      //Remove previous highlight if exists
+      if (cityLayer) {
+        map.removeLayer(cityLayer);
+      }
+
+      // Add new highlight
+      /*cityLayer = L.geoJSON(data, {
+      style: {
+        color: "red",
+        weight: 3,
+        fillColor: "yellow",
+        fillOpacity: 0.6
+      }
+    }).addTo(map);*/
+
+      cityLayer = L.geoJSON(data, {
+      style: {
+        color: "red",
+        weight: 3,
+        fillColor: "yellow",
+        fillOpacity: 0.6
+      }
+    });
+    currentLayerGroup.addLayer(cityLayer);
+
+    //zoom map to bounding box
+    if (data.bbox) {
+      const bounds = [
+        [data.bbox[1], data.bbox[0]], // [miny, minx]
+        [data.bbox[3], data.bbox[2]]  // [maxy, maxx]
+      ];
+      map.fitBounds(bounds, { maxZoom: 8, padding: [50, 50] }); // adjust maxZoom as needed
+    }    
+    } catch (error) {
+      console.error("Error searching city:", error);
+      alert("❌ " + error.message);
+    }
+
+  }
 
   function showLoading(isLoading,type) {
     const loader = document.getElementById("loading");
