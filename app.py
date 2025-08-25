@@ -144,20 +144,21 @@ def get_railways():
 
         print("🚂 Starting to stream railways data...")
         ndjson_stream = StringIO()
-
-        if not g.get("db"):
-            yield json.dumps({"error": "Database connection failed"}) + "\n"
-            return
-
-        chunk_size = 200
-        offset = 0
-        done = False
+        conn = None
+        cursor = None
 
         try:
+            conn = pool.acquire()
+            cursor = conn.cursor()
+
+            chunk_size = 200
+            offset = 0
+            done = False
+            ndjson_chunks = []
+
             while not done:
                 print(f"📦 Fetching rows {offset + 1} to {offset + chunk_size}...")
 
-                cursor = g.db.cursor()
                 cursor.execute("""
                     SELECT id, featurecla, part, continent, wkt_column
                     FROM (
@@ -174,8 +175,6 @@ def get_railways():
                 """, start_row=offset + 1, end_row=offset + chunk_size)
 
                 rows = cursor.fetchall()
-                cursor.close()
-
                 if not rows:
                     done = True
                     break
@@ -210,23 +209,28 @@ def get_railways():
                         "chunk": offset // chunk_size + 1
                     }) + "\n"
                     ndjson_stream.write(line)
+                    ndjson_chunks.append(line)
                     yield line
 
                 offset += chunk_size
                 if len(rows) < chunk_size:
                     done = True
 
+            # ✅ Cache after streaming finishes
+            cached_data_railways = "".join(ndjson_chunks)
+            last_refresh_railways = time.time()
+            print("✅ Cached /railways NDJSON stream")
+
         except Exception as e:
             print(f"❌ Stream error: {e}")
             yield json.dumps({"error": str(e)}) + "\n"
-
-        # Cache the output
-        cached_data_railways = ndjson_stream.getvalue()
-        last_refresh_railways = time.time()
-        print("✅ Cached /railways NDJSON stream")
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                pool.release(conn)
 
     return Response(generate(), mimetype='application/x-ndjson')
-
 
 if __name__ == "__main__":
     app.run(debug=True)
