@@ -14,8 +14,10 @@ app = Flask(__name__)
 # === Configuration ===
 cached_data_cities = None
 cached_data_railways = None
+cached_data_countries = None
 last_refresh_cities = 0
 last_refresh_railways = 0
+last_refresh_countries = 0
 CACHE_TTL_SECONDS = 60 * 60  # Cache for 1 hour
 
 
@@ -279,6 +281,58 @@ def get_railways():
                 pool.release(conn)
 
     return Response(generate(), mimetype='application/x-ndjson')
+
+@app.route("/countries")
+def get_countries():
+
+    global cached_data_countries, last_refresh_countries
+    current_time = time.time()
+    if cached_data_countries is not None and (current_time - last_refresh_countries) < CACHE_TTL_SECONDS:
+        print("Returning cached data.")
+        return cached_data_countries
+
+    print("Fetching countries from the database...")
+    if not g.db:
+        return {"error": "Database connection failed"}, 500
+
+    try:
+        cursor = g.db.cursor()
+        cursor.execute("""
+            SELECT name, name_long, iso_a3,
+            SDO_UTIL.TO_GEOJSON(geom_simple) AS geojson
+            FROM countries
+        """)
+
+        countries = []
+        for record in cursor.fetchall():
+            geojson_str = record[3].read() if hasattr(record[3], "read") else str(record[3])
+            geojson = json.loads(geojson_str)
+            countries.append({
+                "type": "Feature",
+                "geometry": geojson,        
+                "properties": {
+                    "name": record[0],
+                    "name_long": record[1],
+                    "iso_a3": record[2]
+                }
+            })
+        countries_collection = {
+            "type": "FeatureCollection",
+            "features": countries
+        }
+        cached_data_countries = countries_collection
+        last_refresh_countries = time.time()
+        return countries_collection
+
+    except Exception as e:
+        print(f"❌ Error fetching countries: {e}")
+        return {"error": str(e)}, 500
+
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     app.run(debug=True)

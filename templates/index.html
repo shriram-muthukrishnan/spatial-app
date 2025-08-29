@@ -105,6 +105,9 @@
         <label>
         <input type="radio" name="dataToggle" value="railways" /> Railway Lines
         </label>
+        <label>
+          <input type="radio" name="dataToggle" value="countries"> Countries
+        </label>
     </div>
     <!-- Search bar (hidden by default unless cities is selected) -->
     <div id="citySearchContainer" style="margin: 10px 0;">
@@ -132,7 +135,7 @@
       popupAnchor: [0, -28] // where popups open relative to the iconAnchor
     });
 
-    const map = L.map('map').setView([initialLat, initialLng], initialZoom);    
+    const map = L.map('map',{worldCopyJump:true}).setView([initialLat, initialLng], initialZoom);    
     
     const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
@@ -245,7 +248,9 @@ function loadData(type) {
   showLoading(true, type);  // Show loader
   currentLayerGroup.clearLayers();  // Clear existing layers
 
-  const endpoint = type === "cities" ? "/cities" : "/railways";
+  const endpoint = type === "cities" ? "/cities" :
+                   type === "countries" ? "/countries" :
+                   "/railways";
 
   if (type === "cities") {
     // Standard full JSON load
@@ -268,7 +273,39 @@ function loadData(type) {
         alert("❌ Unable to load cities: " + err.message);
       });
 
-  } 
+  }else if (type === "countries") {
+    // Countries as polygons
+    fetch(endpoint)
+      .then(response => {
+        if (!response.ok) throw new Error(`Failed to fetch ${type}`);
+        return response.json();
+      })
+      .then(data => {
+        showLoading(false, type);
+
+        L.geoJSON(data, {
+          style: {
+            color: "grey",
+            weight: 2,
+            fillColor: "lightblue",
+            fillOpacity: 0.4
+          },
+          onEachFeature: function(feature, layer) {
+            const props = feature.properties;
+            layer.bindPopup(`<b>${props.name_long}</b> (${props.iso_a3})<br>Sovereignty: ${props.sovereignt}`);
+          }
+        }).addTo(currentLayerGroup);
+
+        // Fit map to countries
+        //const bounds = L.geoJSON(data).getBounds();
+        //map.fitBounds(bounds, { maxZoom: 6, padding: [50, 50] });
+        map.setView([initialLat, initialLng], initialZoom);
+      })
+      .catch(err => {
+        showLoading(false, type);
+        alert("❌ Unable to load countries: " + err.message);
+      });
+  }
 }
 
 function loadRailwaysStreamed() {
