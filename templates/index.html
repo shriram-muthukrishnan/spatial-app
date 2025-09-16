@@ -274,37 +274,68 @@ function loadData(type) {
       });
 
   }else if (type === "countries") {
-    // Countries as polygons
-    fetch(endpoint)
-      .then(response => {
-        if (!response.ok) throw new Error(`Failed to fetch ${type}`);
-        return response.json();
-      })
-      .then(data => {
-        showLoading(false, type);
 
-        L.geoJSON(data, {
-          style: {
-            color: "grey",
-            weight: 2,
-            fillColor: "lightblue",
-            fillOpacity: 0.4
-          },
-          onEachFeature: function(feature, layer) {
-            const props = feature.properties;
-            layer.bindPopup(`<b>${props.name_long}</b> (${props.iso_a3})<br>Sovereignty: ${props.sovereignt}`);
+  fetch('/countries')
+    .then(response => {
+      if (!response.ok) throw new Error(`Failed to fetch ${type}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+
+      function readChunk() {
+        return reader.read().then(({ done, value }) => {
+          if (done) {
+            showLoading(false, type);
+            console.log("✅ Countries stream complete");
+            return;
           }
-        }).addTo(currentLayerGroup);
 
-        // Fit map to countries
-        //const bounds = L.geoJSON(data).getBounds();
-        //map.fitBounds(bounds, { maxZoom: 6, padding: [50, 50] });
-        map.setView([initialLat, initialLng], initialZoom);
-      })
-      .catch(err => {
-        showLoading(false, type);
-        alert("❌ Unable to load countries: " + err.message);
-      });
+          buffer += decoder.decode(value, { stream: true });
+
+          // Split NDJSON lines
+          let lines = buffer.split("\n");
+          buffer = lines.pop(); // keep partial line
+
+          lines.forEach(line => {
+            if (line.trim()) {
+              try {
+                const collection = JSON.parse(line);
+                console.log("📌 Country FeatureCollection chunk:", collection);
+
+                if (collection.type === 'FeatureCollection' && Array.isArray(collection.features)) {
+                  L.geoJSON(collection, {
+                    style: {
+                      color: "grey",
+                      weight: 2,
+                      fillColor: "lightblue",
+                      fillOpacity: 0.4
+                    },
+                    onEachFeature: function(feature, layer) {
+                      const props = feature.properties;
+                      layer.bindPopup(
+                        `<b>${props.name_long}</b> (${props.iso_a3})`
+                      );
+                    }
+                  }).addTo(currentLayerGroup);
+                }
+
+              } catch (err) {
+                console.error("❌ JSON parse error:", err);
+              }
+            }
+          });
+
+          return readChunk();
+        });
+      }
+
+      return readChunk();
+    })
+    .catch(err => {
+      showLoading(false, type);
+      alert("❌ Unable to load countries: " + err.message);
+    });
   }
 }
 

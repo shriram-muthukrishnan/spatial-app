@@ -286,53 +286,113 @@ def get_railways():
 def get_countries():
 
     global cached_data_countries, last_refresh_countries
+
     current_time = time.time()
     if cached_data_countries is not None and (current_time - last_refresh_countries) < CACHE_TTL_SECONDS:
-        print("Returning cached data.")
-        return cached_data_countries
+        print("🔁 Returning cached countries data.")
+        return Response(cached_data_countries, mimetype='application/x-ndjson')
 
-    print("Fetching countries from the database...")
-    if not g.db:
-        return {"error": "Database connection failed"}, 500
+    @stream_with_context
+    def generate():
+        global cached_data_countries, last_refresh_countries
 
-    try:
-        cursor = g.db.cursor()
-        cursor.execute("""
-            SELECT name, name_long, iso_a3,
-            SDO_UTIL.TO_GEOJSON(geom_simple) AS geojson
-            FROM countries
-        """)
+        print("🌍 Starting to stream countries data...")
+        ndjson_chunks = []
+        conn = None
+        cursor = None
 
-        countries = []
-        for record in cursor.fetchall():
-            geojson_str = record[3].read() if hasattr(record[3], "read") else str(record[3])
-            geojson = json.loads(geojson_str)
-            countries.append({
-                "type": "Feature",
-                "geometry": geojson,        
-                "properties": {
-                    "name": record[0],
-                    "name_long": record[1],
-                    "iso_a3": record[2]
-                }
-            })
-        countries_collection = {
-            "type": "FeatureCollection",
-            "features": countries
-        }
-        cached_data_countries = countries_collection
-        last_refresh_countries = time.time()
-        return countries_collection
-
-    except Exception as e:
-        print(f"❌ Error fetching countries: {e}")
-        return {"error": str(e)}, 500
-
-    finally:
         try:
-            cursor.close()
-        except Exception:
-            pass
+            conn = pool.acquire()
+            cursor = conn.cursor()
+
+            chunk_size = 20
+            offset = 0
+            done = False
+
+            while not done:
+                cursor.execute("""
+                    SELECT name, name_long, iso_a3, geom_simple
+                    FROM (
+                        SELECT name, name_long, iso_a3, geom_simple,
+                               ROW_NUMBER() OVER (ORDER BY iso_a3) AS rn
+                        FROM countries
+                        WHERE geom_simple IS NOT NULL
+                    )
+                    WHERE rn BETWEEN :start_row AND :end_row
+                """, start_row=offset + 1, end_row=offset + chunk_size)
+
+                rows = cursor.fetchall()
+                if not rows:
+                    done = True
+                    break
+
+                chunk_features = []
+                for row in rows:
+                    try:
+                        # Try TO_GEOJSON per-row
+                        cursor2 = conn.cursor()
+                        cursor2.execute("""
+                            SELECT SDO_UTIL.TO_GEOJSON(:geom) FROM dual
+                        """, geom=row[3])
+                        geojson_obj, = cursor2.fetchone()
+                        cursor2.close()
+
+                        if not geojson_obj:
+                            continue
+
+                        # Convert CLOB → str
+                        if hasattr(geojson_obj, "read"):
+                            geojson_str = geojson_obj.read()
+                        else:
+                            geojson_str = geojson_obj
+
+                        if isinstance(geojson_str, bytes):
+                            geojson_str = geojson_str.decode("utf-8")
+
+                        geom = json.loads(geojson_str)
+
+                        feature = {
+                            "type": "Feature",
+                            "geometry": geom,
+                            "properties": {
+                                "name": row[0],
+                                "name_long": row[1],
+                                "iso_a3": row[2]
+                            }
+                        }
+                        chunk_features.append(feature)
+
+                    except Exception as e:
+                        print(f"⚠️ Skipping bad geometry for {row[0]} ({row[2]}): {e}")
+                        continue
+
+                if chunk_features:
+                    line = json.dumps({
+                        "type": "FeatureCollection",
+                        "features": chunk_features,
+                        "chunk": offset // chunk_size + 1
+                    }) + "\n"
+                    ndjson_chunks.append(line)
+                    yield line
+
+                offset += chunk_size
+                if len(rows) < chunk_size:
+                    done = True
+
+            cached_data_countries = "".join(ndjson_chunks)
+            last_refresh_countries = time.time()
+            print("✅ Cached /countries NDJSON stream")
+
+        except Exception as e:
+            print(f"❌ Stream error: {e}")
+            yield json.dumps({"error": str(e)}) + "\n"
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                pool.release(conn)
+
+    return Response(generate(), mimetype='application/x-ndjson')
 
 if __name__ == "__main__":
     app.run(debug=True)
