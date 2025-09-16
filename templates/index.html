@@ -298,32 +298,35 @@ function loadData(type) {
           buffer = lines.pop(); // keep partial line
 
           lines.forEach(line => {
-            if (line.trim()) {
-              try {
-                const collection = JSON.parse(line);
-                console.log("📌 Country FeatureCollection chunk:", collection);
+              if (line.trim()) {
+                try {
+                  console.log("RAW NDJSON line:", line); // 🔍 debug
+                  
+                  // Some servers wrap JSON in quotes, handle both
+                  let collection = JSON.parse(line);
+                  if (typeof collection === "string") {
+                    collection = JSON.parse(collection);
+                  }
 
-                if (collection.type === 'FeatureCollection' && Array.isArray(collection.features)) {
-                  L.geoJSON(collection, {
-                    style: {
-                      color: "grey",
-                      weight: 2,
-                      fillColor: "lightblue",
-                      fillOpacity: 0.4
-                    },
-                    onEachFeature: function(feature, layer) {
-                      const props = feature.properties;
-                      layer.bindPopup(
-                        `<b>${props.name_long}</b> (${props.iso_a3})`
-                      );
-                    }
-                  }).addTo(currentLayerGroup);
+                  if (collection.type === 'FeatureCollection' && Array.isArray(collection.features)) {
+                    L.geoJSON(collection, {
+                      style: {
+                        color: "grey",
+                        weight: 2,
+                        fillColor: "lightblue",
+                        fillOpacity: 0.4
+                      },
+                      onEachFeature: function(feature, layer) {
+                        const props = feature.properties;
+                        layer.bindPopup(`<b>${props.name_long}</b> (${props.iso_a3})`);
+                      }
+                    }).addTo(currentLayerGroup);
+                  }
+
+                } catch (err) {
+                  console.error("❌ JSON parse error:", err, "LINE:", line);
                 }
-
-              } catch (err) {
-                console.error("❌ JSON parse error:", err);
               }
-            }
           });
 
           return readChunk();
