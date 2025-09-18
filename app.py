@@ -311,9 +311,9 @@ def get_countries():
 
             while not done:
                 cursor.execute("""
-                    SELECT name, name_long, iso_a3, geom_simple
+                    SELECT name, name_long, CAPITAL, iso_a3, geom_simple
                     FROM (
-                        SELECT name, name_long, iso_a3, geom_simple,
+                        SELECT name, name_long, CAPITAL, iso_a3, geom_simple,
                                ROW_NUMBER() OVER (ORDER BY iso_a3) AS rn
                         FROM countries
                         WHERE geom_simple IS NOT NULL
@@ -333,7 +333,7 @@ def get_countries():
                         cursor2 = conn.cursor()
                         cursor2.execute("""
                             SELECT SDO_UTIL.TO_GEOJSON(:geom) FROM dual
-                        """, geom=row[3])
+                        """, geom=row[4])
                         geojson_obj, = cursor2.fetchone()
                         cursor2.close()
 
@@ -357,7 +357,8 @@ def get_countries():
                             "properties": {
                                 "name": row[0],
                                 "name_long": row[1],
-                                "iso_a3": row[2]
+                                "CAPITAL": row[2],
+                                "iso_a3": row[3]
                             }
                         }
                         chunk_features.append(feature)

@@ -318,7 +318,7 @@ function loadData(type) {
                       },
                       onEachFeature: function(feature, layer) {
                         const props = feature.properties;
-                        layer.bindPopup(`<b>${props.name_long}</b> (${props.iso_a3})`);
+                        layer.bindPopup(`<b>${props.name_long}</b> (${props.iso_a3}) <br><b>Capital: ${props.CAPITAL}</b>`);
                       }
                     }).addTo(currentLayerGroup);
                   }
