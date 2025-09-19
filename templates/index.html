@@ -318,7 +318,9 @@ function loadData(type) {
                       },
                       onEachFeature: function(feature, layer) {
                         const props = feature.properties;
-                        layer.bindPopup(`<b>${props.name_long}</b> (${props.iso_a3}) <br><b>Capital: ${props.CAPITAL}</b>`);
+                        layer.bindPopup(`<b>${props.name_long}</b> (${props.iso_a3}) <br><b>Capital: ${props.capital}</b> <br>
+                          ${props.flag_svg ? `<img src="data:image/svg+xml;base64,${btoa(props.flag_svg)}" alt="Flag" width="100">` : 'No flag available'}
+                        `);
                       }
                     }).addTo(currentLayerGroup);
                   }

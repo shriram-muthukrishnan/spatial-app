@@ -7,6 +7,7 @@ from shapely import wkt
 from shapely.geometry import mapping
 import time
 import atexit
+import base64
 import traceback
 from io import StringIO
 
@@ -282,15 +283,30 @@ def get_railways():
 
     return Response(generate(), mimetype='application/x-ndjson')
 
+
 @app.route("/countries")
 def get_countries():
-
     global cached_data_countries, last_refresh_countries
-
     current_time = time.time()
     if cached_data_countries is not None and (current_time - last_refresh_countries) < CACHE_TTL_SECONDS:
         print("🔁 Returning cached countries data.")
         return Response(cached_data_countries, mimetype='application/x-ndjson')
+
+    def get_base64_flag(lob_value):
+        """Convert Oracle BLOB (raw SVG XML) to string."""
+        if not lob_value:
+            return None
+        try:
+            if hasattr(lob_value, "read"):
+                blob_bytes = lob_value.read()
+            else:
+                blob_bytes = lob_value
+            if not blob_bytes:
+                return None
+            return blob_bytes.decode("utf-8")  # decode raw SVG XML
+        except Exception as e:
+            print(f"⚠️ Failed to convert flag SVG: {e}")
+            return None
 
     @stream_with_context
     def generate():
@@ -311,9 +327,9 @@ def get_countries():
 
             while not done:
                 cursor.execute("""
-                    SELECT name, name_long, CAPITAL, iso_a3, geom_simple
+                    SELECT name, name_long, CAPITAL, iso_a3, flag_svg, geom_simple
                     FROM (
-                        SELECT name, name_long, CAPITAL, iso_a3, geom_simple,
+                        SELECT name, name_long, CAPITAL, iso_a3, flag_svg, geom_simple,
                                ROW_NUMBER() OVER (ORDER BY iso_a3) AS rn
                         FROM countries
                         WHERE geom_simple IS NOT NULL
@@ -329,11 +345,11 @@ def get_countries():
                 chunk_features = []
                 for row in rows:
                     try:
-                        # Try TO_GEOJSON per-row
+                        # Convert geometry to GeoJSON
                         cursor2 = conn.cursor()
                         cursor2.execute("""
                             SELECT SDO_UTIL.TO_GEOJSON(:geom) FROM dual
-                        """, geom=row[4])
+                        """, geom=row[5])
                         geojson_obj, = cursor2.fetchone()
                         cursor2.close()
 
@@ -351,14 +367,18 @@ def get_countries():
 
                         geom = json.loads(geojson_str)
 
+                        # Convert flag BLOB → base64 string
+                        flag_base64 = get_base64_flag(row[4])
+                        print(row[2])
                         feature = {
                             "type": "Feature",
                             "geometry": geom,
                             "properties": {
                                 "name": row[0],
                                 "name_long": row[1],
-                                "CAPITAL": row[2],
-                                "iso_a3": row[3]
+                                "capital": row[2],
+                                "iso_a3": row[3],
+                                "flag_svg": flag_base64
                             }
                         }
                         chunk_features.append(feature)
