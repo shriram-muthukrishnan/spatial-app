@@ -1,6 +1,7 @@
 import os
 from flask import stream_with_context,Response
 from flask import Flask,g,request,render_template,jsonify
+from dotenv import load_dotenv
 import oracledb
 import json
 from shapely import wkt
@@ -10,6 +11,19 @@ import atexit
 import base64
 import traceback
 from io import StringIO
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Read from env vars
+db_user = os.getenv("DB_USER")
+db_pass = os.getenv("DB_PASS")
+db_host = os.getenv("DB_HOST")
+db_port = int(os.getenv("DB_PORT", 1521))
+db_service = os.getenv("DB_SERVICE")
+
+dsn = oracledb.makedsn(db_host, db_port, service_name=db_service)
+print(f"Using DSN: {dsn}")
 
 app = Flask(__name__)
 # === Configuration ===
@@ -21,15 +35,14 @@ last_refresh_railways = 0
 last_refresh_countries = 0
 CACHE_TTL_SECONDS = 60 * 60  # Cache for 1 hour
 
-
 # === Create a global Oracle connection pool ===
 print("Creating Oracle connection pool...")
-dsn = oracledb.makedsn("20.84.145.157", 1521, service_name="XEPDB1")
+dsn = oracledb.makedsn(db_host, db_port, service_name=db_service)
 print(f"Using DSN: {dsn}")
 try:
     pool = oracledb.SessionPool(
-        user="SHRIRAM",
-        password="Admin123",
+        user=db_user,
+        password=db_pass,
         dsn=dsn,
         min=2,
         max=10,
