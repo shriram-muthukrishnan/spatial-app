@@ -51,5 +51,5 @@ Anyone above **5 years of age** can use this app to explore **country borders, c
 ---
 
 ## License
-This project is licensed under the **MIT License**.
+This project is licensed under the [MIT License](LICENSE).
 
