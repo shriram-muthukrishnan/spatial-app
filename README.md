@@ -27,6 +27,7 @@ Anyone above **5 years of age** can use this app to explore **country borders, c
 - **Countries Section:**  
   - Click on a country to see its **capital** and **flag**.  
   - The app covers a limited set of countries, making it easy and fun to **learn quickly**.  
+  ![Demo Animation](countries-ezgif.gif)
 
 - **Railways Section:**  
   - Red lines are painted across the map, each representing an actual **railway line** on Earth.  
