@@ -22,6 +22,7 @@ Anyone above **5 years of age** can use this app to explore **country borders, c
   - Click on the location icon to view more details such as **population** and **nearby major cities**.  
   - If unsure, use the **search box** to locate the city instantly.  
   - Reset the zoom to see the city’s position relative to the overall world map.  
+  ![Demo Animation](citysearch-ezgif.gif)
 
 - **Countries Section:**  
   - Click on a country to see its **capital** and **flag**.  
